@@ -15,7 +15,7 @@ else:
 
 # Streamlit page setup
 st.set_page_config(page_title="Web CMD", layout="wide")
-st.title("🌐 Web Command Line Interface")
+st.title("Web Command Line Interface")
 
 # Initialize session state for console output
 if "console_output" not in st.session_state:
