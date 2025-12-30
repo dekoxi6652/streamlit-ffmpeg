@@ -7,29 +7,41 @@ import urllib.request
 import zipfile
 import tempfile
 
-# File to save commands
+# ----------------------------
+# Constants
+# ----------------------------
 COMMANDS_FILE = "commands.json"
+PROMPT = r"C:\Users\pc> "
 
+# ----------------------------
 # Load saved commands
+# ----------------------------
 if os.path.exists(COMMANDS_FILE):
     with open(COMMANDS_FILE, "r") as f:
         saved_commands = json.load(f)
 else:
     saved_commands = []
 
+# ----------------------------
+# Streamlit page config
+# ----------------------------
 st.set_page_config(page_title="Web CMD Terminal", layout="wide")
 
-# Session state
+# ----------------------------
+# Initialize session state
+# ----------------------------
 if "console_output" not in st.session_state:
     st.session_state.console_output = []
 if "command_history" not in st.session_state:
     st.session_state.command_history = []
 if "history_index" not in st.session_state:
     st.session_state.history_index = -1
+if "cmd_input" not in st.session_state:
+    st.session_state.cmd_input = ""
 
-prompt_path = r"C:\Users\pc> "
-
-# CSS for terminal
+# ----------------------------
+# CSS for terminal look
+# ----------------------------
 st.markdown("""
 <style>
 .terminal {
@@ -65,67 +77,80 @@ input#cmd_input {
 </style>
 """, unsafe_allow_html=True)
 
-# Function to add output
+# ----------------------------
+# Helper function to add terminal output
+# ----------------------------
 def add_output(command, output, is_error=False):
     if is_error:
-        st.session_state.console_output.append(f'<span class="stderr">{prompt_path}{command}\n{output}</span>')
+        st.session_state.console_output.append(f'<span class="stderr">{PROMPT}{command}\n{output}</span>')
     else:
-        st.session_state.console_output.append(f'<span class="stdout">{prompt_path}{command}\n{output}</span>')
+        st.session_state.console_output.append(f'<span class="stdout">{PROMPT}{command}\n{output}</span>')
 
-# -------------------
-# Auto-install FFmpeg if missing
-# -------------------
+# ----------------------------
+# FFmpeg installation
+# ----------------------------
 def install_ffmpeg():
     ffmpeg_path = r"C:\ffmpeg\bin\ffmpeg.exe"
-    
-    if not os.path.exists(ffmpeg_path):
-        add_output("SYSTEM", "FFmpeg not found. Installing...", is_error=False)
-        try:
-            # Download FFmpeg static build
-            url = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
-            tmp_file = os.path.join(tempfile.gettempdir(), "ffmpeg.zip")
-            urllib.request.urlretrieve(url, tmp_file)
 
-            extract_path = r"C:\ffmpeg"
-            os.makedirs(extract_path, exist_ok=True)
-
-            with zipfile.ZipFile(tmp_file, "r") as zip_ref:
-                zip_ref.extractall(extract_path)
-
-            # The zip usually extracts into a folder like ffmpeg-<version>-essentials
-            extracted_folder = next(os.scandir(extract_path)).path
-            bin_path = os.path.join(extracted_folder, "bin")
-
-            # Move bin content to C:\ffmpeg\bin
-            final_bin_path = os.path.join(extract_path, "bin")
-            os.makedirs(final_bin_path, exist_ok=True)
-            for f in os.listdir(bin_path):
-                shutil.move(os.path.join(bin_path, f), final_bin_path)
-
-            # Remove extra extracted folder
-            if extracted_folder != final_bin_path:
-                shutil.rmtree(extracted_folder, ignore_errors=True)
-
-            # Add FFmpeg to system PATH (requires admin)
-            subprocess.run(f'setx PATH "%PATH%;{final_bin_path}"', shell=True)
-
-            add_output("SYSTEM", f"FFmpeg installed successfully at {final_bin_path}. You may need to restart your app to use ffmpeg.")
-        except Exception as e:
-            add_output("SYSTEM", f"Failed to install FFmpeg: {e}", is_error=True)
-    else:
+    # Already installed check
+    if shutil.which("ffmpeg") or os.path.exists(ffmpeg_path):
         add_output("SYSTEM", "FFmpeg already installed")
+        return ffmpeg_path
+
+    add_output("SYSTEM", "FFmpeg not found. Installing...")
+
+    try:
+        url = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+        tmp_file = os.path.join(tempfile.gettempdir(), "ffmpeg.zip")
+        urllib.request.urlretrieve(url, tmp_file)
+
+        extract_path = r"C:\ffmpeg"
+        os.makedirs(extract_path, exist_ok=True)
+
+        with zipfile.ZipFile(tmp_file, "r") as zip_ref:
+            zip_ref.extractall(extract_path)
+
+        # Find the bin folder
+        bin_path = None
+        for root, dirs, files in os.walk(extract_path):
+            if "ffmpeg.exe" in files:
+                bin_path = root
+                break
+
+        if not bin_path:
+            add_output("SYSTEM", "Failed to find ffmpeg.exe after extraction.", is_error=True)
+            return None
+
+        # Move contents to C:\ffmpeg\bin
+        final_bin_path = os.path.join(extract_path, "bin")
+        os.makedirs(final_bin_path, exist_ok=True)
+        for f in os.listdir(bin_path):
+            shutil.move(os.path.join(bin_path, f), final_bin_path)
+
+        add_output("SYSTEM", f"FFmpeg installed at {final_bin_path}. Add it to PATH manually if needed.")
+        return os.path.join(final_bin_path, "ffmpeg.exe")
+
+    except Exception as e:
+        add_output("SYSTEM", f"Failed to install FFmpeg: {e}", is_error=True)
+        return None
 
 install_ffmpeg()
 
-# Display terminal
+# ----------------------------
+# Terminal display
+# ----------------------------
 terminal_html = "<br>".join(st.session_state.console_output) + '<span class="cursor">_</span>'
 terminal_area = st.empty()
 terminal_area.markdown(f'<div class="terminal" id="console_output_area">{terminal_html}</div>', unsafe_allow_html=True)
 
+# ----------------------------
 # Input field
+# ----------------------------
 command_input = st.text_input("", key="cmd_input", label_visibility="collapsed")
 
-# Run command logic
+# ----------------------------
+# Run command
+# ----------------------------
 if command_input.strip() != "":
     cmd_to_run = command_input.strip()
     try:
@@ -137,7 +162,7 @@ if command_input.strip() != "":
     except Exception as e:
         add_output(cmd_to_run, str(e), is_error=True)
 
-    # Update command history
+    # Update history
     st.session_state.command_history.append(cmd_to_run)
     st.session_state.history_index = len(st.session_state.command_history)
 
@@ -145,12 +170,14 @@ if command_input.strip() != "":
     if cmd_to_run not in saved_commands:
         saved_commands.append(cmd_to_run)
         with open(COMMANDS_FILE, "w") as f:
-            json.dump(saved_commands, f)
+            json.dump(saved_commands, f, indent=2)
 
-    # Clear input
-    st.session_state.cmd_input = ""
+    # Clear input safely
+    st.session_state["cmd_input"] = ""
 
-# Auto-scroll
+# ----------------------------
+# Auto-scroll terminal
+# ----------------------------
 st.markdown("""
 <script>
 var term = document.getElementById('console_output_area');
@@ -158,12 +185,13 @@ term.scrollTop = term.scrollHeight;
 </script>
 """, unsafe_allow_html=True)
 
-# JS for Enter key and arrow keys for history
+# ----------------------------
+# JS for arrow key history
+# ----------------------------
 st.markdown("""
 <script>
 const input = window.parent.document.querySelector('input#cmd_input');
 let history_index = -1;
-
 input.addEventListener('keydown', function(e) {
     window.parent.stSessionState = window.parent.stSessionState || {};
     let hist = Object.values(window.parent.stSessionState.command_history || []);
@@ -189,7 +217,9 @@ input.addEventListener('keydown', function(e) {
 </script>
 """, unsafe_allow_html=True)
 
-# Show saved commands below
+# ----------------------------
+# Show saved commands
+# ----------------------------
 st.subheader("Saved Commands")
 for cmd in saved_commands:
     st.write(cmd)
