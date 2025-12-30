@@ -3,7 +3,6 @@ import subprocess
 import json
 import os
 
-# Path to save commands
 COMMANDS_FILE = "commands.json"
 
 # Load saved commands
@@ -13,7 +12,6 @@ if os.path.exists(COMMANDS_FILE):
 else:
     saved_commands = []
 
-# Set up page layout and style
 st.set_page_config(page_title="Web CMD Terminal", layout="wide")
 
 # Custom CSS for terminal style
@@ -45,41 +43,44 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Initialize session state for console output if needed
 if "console_output" not in st.session_state:
     st.session_state.console_output = ""
 
-# Current prompt path (simulate Windows prompt)
 prompt_path = r"C:\Users\pc> "
 
-# Display the console output area with black background
-st.markdown('<div class="terminal" id="console_output_area">{}</div>'.format(st.session_state.console_output.replace('\n', '<br>')), unsafe_allow_html=True)
+# Show console output area
+st.markdown(
+    f'<div class="terminal" id="console_output_area">{st.session_state.console_output.replace(chr(10), "<br>")}</div>',
+    unsafe_allow_html=True,
+)
 
-# Command input (simulate prompt)
+# Input for command
 command = st.text_input(f"{prompt_path}", key="cmd_input", label_visibility="collapsed")
 
-# Run command if input given
-if command:
+if st.button("Run") and command.strip() != "":
     try:
-        # Run the command in shell and capture output
+        # Run the command
         result = subprocess.run(command, shell=True, capture_output=True, text=True)
         output = result.stdout + result.stderr
 
-        # Format output with prompt and command
-        full_output = f"{prompt_path}{command}\n{output}"
-        st.session_state.console_output += full_output
+        # Append the prompt + command + output to console
+        st.session_state.console_output += f"{prompt_path}{command}\n{output}\n"
 
-        # Save command persistently if not saved
+        # Save command persistently
         if command not in saved_commands:
             saved_commands.append(command)
             with open(COMMANDS_FILE, "w") as f:
                 json.dump(saved_commands, f)
 
+        # Clear the command input by resetting the widget
+        # Using a workaround: set session_state key to "" using st.experimental_set_query_params trick
+        st.experimental_rerun()  # re-run the app to clear input and show new output
+
     except Exception as e:
         st.session_state.console_output += f"{prompt_path}{command}\nError: {e}\n"
+        st.experimental_rerun()
 
-    # Clear command input box after running
-    st.session_state.cmd_input = ""
-
-    # Rerun the app to update console display and clear input
-    st.experimental_rerun()
+# Show saved commands below
+st.subheader("Saved Commands")
+for cmd in saved_commands:
+    st.write(cmd)
