@@ -14,66 +14,67 @@ else:
 
 st.set_page_config(page_title="Web CMD Terminal", layout="wide")
 
-st.markdown(
-    """
-    <style>
-    .terminal {
-        background-color: black;
-        color: white;
-        font-family: "Consolas", "Courier New", monospace;
-        font-size: 14px;
-        padding: 10px;
-        border-radius: 5px;
-        white-space: pre-wrap;
-        overflow-y: auto;
-        height: 400px;
-    }
-    input[type="text"] {
-        background-color: black;
-        color: white;
-        font-family: "Consolas", "Courier New", monospace;
-        font-size: 14px;
-        border: none;
-        outline: none;
-        width: 100%;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+st.markdown("""
+<style>
+.terminal {
+    background-color: black;
+    color: white;
+    font-family: "Consolas", "Courier New", monospace;
+    font-size: 14px;
+    padding: 10px;
+    border-radius: 5px;
+    white-space: pre-wrap;
+    overflow-y: auto;
+    height: 400px;
+}
+input[type="text"] {
+    background-color: black;
+    color: white;
+    font-family: "Consolas", "Courier New", monospace;
+    font-size: 14px;
+    border: none;
+    outline: none;
+    width: 100%;
+}
+</style>
+""", unsafe_allow_html=True)
 
 if "console_output" not in st.session_state:
     st.session_state.console_output = ""
 
-if "input_reset_counter" not in st.session_state:
-    st.session_state.input_reset_counter = 0
-
 prompt_path = r"C:\Users\pc> "
 
-# Show console output area
+# Display console output
 st.markdown(
-    f'<div class="terminal" id="console_output_area">{st.session_state.console_output.replace(chr(10), "<br>")}</div>',
+    f'<div class="terminal">{st.session_state.console_output.replace(chr(10), "<br>")}</div>',
     unsafe_allow_html=True,
 )
 
-# Use input_reset_counter to force input reset
-input_key = f"cmd_input_{st.session_state.input_reset_counter}"
+# Capture input safely
+command_input = st.text_input(f"{prompt_path}", key="cmd_input", label_visibility="collapsed")
 
-command = st.text_input(f"{prompt_path}", key=input_key, label_visibility="collapsed")
+# Run button
+if st.button("Run") and command_input.strip() != "":
+    # Capture the value immediately
+    command_to_run = command_input.strip()
 
-if st.button("Run") and command.strip() != "":
-    result = subprocess.run(command, shell=True, capture_output=True, text=True)
+    # Run command
+    result = subprocess.run(command_to_run, shell=True, capture_output=True, text=True)
     output = result.stdout + result.stderr
-    st.session_state.console_output += f"{prompt_path}{command}\n{output}\n"
 
-    if command not in saved_commands:
-        saved_commands.append(command)
+    # Append output to console
+    st.session_state.console_output += f"{prompt_path}{command_to_run}\n{output}\n"
+
+    # Save command
+    if command_to_run not in saved_commands:
+        saved_commands.append(command_to_run)
         with open(COMMANDS_FILE, "w") as f:
             json.dump(saved_commands, f)
 
-    # Increment counter to reset input on next rerun
-    st.session_state.input_reset_counter += 1
+    # Clear input by resetting the widget
+    st.session_state.cmd_input = ""  # now safe because we already captured command_to_run
 
+# Show saved commands
 st.subheader("Saved Commands")
 for cmd in saved_commands:
     st.write(cmd)
