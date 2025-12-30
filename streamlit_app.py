@@ -2,6 +2,10 @@ import streamlit as st
 import subprocess
 import json
 import os
+import shutil
+import urllib.request
+import zipfile
+import tempfile
 
 # File to save commands
 COMMANDS_FILE = "commands.json"
@@ -68,6 +72,34 @@ def add_output(command, output, is_error=False):
     else:
         st.session_state.console_output.append(f'<span class="stdout">{prompt_path}{command}\n{output}</span>')
 
+# -------------------
+# Auto-install FFmpeg if missing
+# -------------------
+def install_ffmpeg():
+    if shutil.which("ffmpeg") is None:
+        add_output("SYSTEM", "FFmpeg not found. Installing...", is_error=False)
+        try:
+            url = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+            tmp_file = os.path.join(tempfile.gettempdir(), "ffmpeg.zip")
+            urllib.request.urlretrieve(url, tmp_file)
+
+            extract_path = r"C:\ffmpeg"
+            os.makedirs(extract_path, exist_ok=True)
+
+            with zipfile.ZipFile(tmp_file, "r") as zip_ref:
+                zip_ref.extractall(extract_path)
+
+            bin_path = os.path.join(extract_path, os.listdir(extract_path)[0], "bin")
+            # Add to PATH for current session (won't persist)
+            os.environ["PATH"] += os.pathsep + bin_path
+            add_output("SYSTEM", f"FFmpeg installed successfully at {bin_path}")
+        except Exception as e:
+            add_output("SYSTEM", f"Failed to install FFmpeg: {e}", is_error=True)
+    else:
+        add_output("SYSTEM", "FFmpeg already installed")
+
+install_ffmpeg()
+
 # Display terminal
 terminal_html = "<br>".join(st.session_state.console_output) + '<span class="cursor">_</span>'
 terminal_area = st.empty()
@@ -113,31 +145,25 @@ term.scrollTop = term.scrollHeight;
 st.markdown("""
 <script>
 const input = window.parent.document.querySelector('input#cmd_input');
-let history = [];
 let history_index = -1;
 
 input.addEventListener('keydown', function(e) {
-    // Arrow Up
+    window.parent.stSessionState = window.parent.stSessionState || {};
+    let hist = Object.values(window.parent.stSessionState.command_history || []);
     if(e.key === 'ArrowUp') {
-        window.parent.stSessionState = window.parent.stSessionState || {};
-        let hist = Object.values(window.parent.stSessionState.command_history || []);
         if(hist.length > 0) {
             history_index = Math.max(0, history_index-1);
             input.value = hist[history_index] || '';
         }
         e.preventDefault();
     }
-    // Arrow Down
     if(e.key === 'ArrowDown') {
-        window.parent.stSessionState = window.parent.stSessionState || {};
-        let hist = Object.values(window.parent.stSessionState.command_history || []);
         if(hist.length > 0) {
             history_index = Math.min(hist.length-1, history_index+1);
             input.value = hist[history_index] || '';
         }
         e.preventDefault();
     }
-    // Enter key
     if(e.key === 'Enter') {
         let evt = new Event('change', { bubbles: true });
         input.dispatchEvent(evt);
