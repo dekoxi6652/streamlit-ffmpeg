@@ -45,17 +45,23 @@ st.markdown(
 if "console_output" not in st.session_state:
     st.session_state.console_output = ""
 
+if "input_reset_counter" not in st.session_state:
+    st.session_state.input_reset_counter = 0
+
 prompt_path = r"C:\Users\pc> "
 
+# Show console output area
 st.markdown(
     f'<div class="terminal" id="console_output_area">{st.session_state.console_output.replace(chr(10), "<br>")}</div>',
     unsafe_allow_html=True,
 )
 
-command = st.text_input(f"{prompt_path}", key="cmd_input", label_visibility="collapsed")
+# Use input_reset_counter to force input reset
+input_key = f"cmd_input_{st.session_state.input_reset_counter}"
+
+command = st.text_input(f"{prompt_path}", key=input_key, label_visibility="collapsed")
 
 if st.button("Run") and command.strip() != "":
-    # Run command and update output
     result = subprocess.run(command, shell=True, capture_output=True, text=True)
     output = result.stdout + result.stderr
     st.session_state.console_output += f"{prompt_path}{command}\n{output}\n"
@@ -65,17 +71,8 @@ if st.button("Run") and command.strip() != "":
         with open(COMMANDS_FILE, "w") as f:
             json.dump(saved_commands, f)
 
-    # Clear input by resetting the widget's key using a trick:
-    # We can't set st.session_state["cmd_input"] = "" directly (Streamlit restrictions),
-    # so we use a rerun but only after setting a flag in session state.
-
-    st.session_state["clear_input"] = True
-
-# Clear the input if flag is set
-if st.session_state.get("clear_input", False):
-    st.session_state["cmd_input"] = ""
-    st.session_state["clear_input"] = False
-    # Do not call rerun here to avoid infinite loop
+    # Increment counter to reset input on next rerun
+    st.session_state.input_reset_counter += 1
 
 st.subheader("Saved Commands")
 for cmd in saved_commands:
