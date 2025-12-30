@@ -76,9 +76,12 @@ def add_output(command, output, is_error=False):
 # Auto-install FFmpeg if missing
 # -------------------
 def install_ffmpeg():
-    if shutil.which("ffmpeg") is None:
+    ffmpeg_path = r"C:\ffmpeg\bin\ffmpeg.exe"
+    
+    if not os.path.exists(ffmpeg_path):
         add_output("SYSTEM", "FFmpeg not found. Installing...", is_error=False)
         try:
+            # Download FFmpeg static build
             url = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
             tmp_file = os.path.join(tempfile.gettempdir(), "ffmpeg.zip")
             urllib.request.urlretrieve(url, tmp_file)
@@ -89,10 +92,24 @@ def install_ffmpeg():
             with zipfile.ZipFile(tmp_file, "r") as zip_ref:
                 zip_ref.extractall(extract_path)
 
-            bin_path = os.path.join(extract_path, os.listdir(extract_path)[0], "bin")
-            # Add to PATH for current session (won't persist)
-            os.environ["PATH"] += os.pathsep + bin_path
-            add_output("SYSTEM", f"FFmpeg installed successfully at {bin_path}")
+            # The zip usually extracts into a folder like ffmpeg-<version>-essentials
+            extracted_folder = next(os.scandir(extract_path)).path
+            bin_path = os.path.join(extracted_folder, "bin")
+
+            # Move bin content to C:\ffmpeg\bin
+            final_bin_path = os.path.join(extract_path, "bin")
+            os.makedirs(final_bin_path, exist_ok=True)
+            for f in os.listdir(bin_path):
+                shutil.move(os.path.join(bin_path, f), final_bin_path)
+
+            # Remove extra extracted folder
+            if extracted_folder != final_bin_path:
+                shutil.rmtree(extracted_folder, ignore_errors=True)
+
+            # Add FFmpeg to system PATH (requires admin)
+            subprocess.run(f'setx PATH "%PATH%;{final_bin_path}"', shell=True)
+
+            add_output("SYSTEM", f"FFmpeg installed successfully at {final_bin_path}. You may need to restart your app to use ffmpeg.")
         except Exception as e:
             add_output("SYSTEM", f"Failed to install FFmpeg: {e}", is_error=True)
     else:
