@@ -2,15 +2,9 @@ import streamlit as st
 import subprocess
 import json
 import os
-import sys
+import imageio_ffmpeg as ffmpeg  # Just import normally
 
-# ----- Auto-install FFmpeg -----
-try:
-    import imageio_ffmpeg as ffmpeg
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "imageio-ffmpeg"])
-    import imageio_ffmpeg as ffmpeg
-
+# Get FFmpeg executable path
 ffmpeg_path = ffmpeg.get_ffmpeg_exe()
 
 # ----- File to store commands -----
