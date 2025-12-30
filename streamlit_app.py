@@ -3,7 +3,7 @@ import subprocess
 import json
 import os
 
-# File to store commands
+# Path to save commands
 COMMANDS_FILE = "commands.json"
 
 # Load saved commands
@@ -13,48 +13,73 @@ if os.path.exists(COMMANDS_FILE):
 else:
     saved_commands = []
 
-# Streamlit page setup
-st.set_page_config(page_title="Web CMD", layout="wide")
-st.title("Web Command Line Interface")
+# Set up page layout and style
+st.set_page_config(page_title="Web CMD Terminal", layout="wide")
 
-# Initialize session state for console output
+# Custom CSS for terminal style
+st.markdown(
+    """
+    <style>
+    .terminal {
+        background-color: black;
+        color: white;
+        font-family: "Consolas", "Courier New", monospace;
+        font-size: 14px;
+        padding: 10px;
+        border-radius: 5px;
+        white-space: pre-wrap;
+        overflow-y: auto;
+        height: 400px;
+    }
+    input[type="text"] {
+        background-color: black;
+        color: white;
+        font-family: "Consolas", "Courier New", monospace;
+        font-size: 14px;
+        border: none;
+        outline: none;
+        width: 100%;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# Initialize session state for console output if needed
 if "console_output" not in st.session_state:
     st.session_state.console_output = ""
 
-if "last_command" not in st.session_state:
-    st.session_state.last_command = ""
+# Current prompt path (simulate Windows prompt)
+prompt_path = r"C:\Users\pc> "
 
-# Input for command
-command = st.text_input("Enter command:", value=st.session_state.last_command, key="cmd_input")
+# Display the console output area with black background
+st.markdown('<div class="terminal" id="console_output_area">{}</div>'.format(st.session_state.console_output.replace('\n', '<br>')), unsafe_allow_html=True)
 
-def run_command(cmd):
+# Command input (simulate prompt)
+command = st.text_input(f"{prompt_path}", key="cmd_input", label_visibility="collapsed")
+
+# Run command if input given
+if command:
     try:
-        # Run the command
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        # Run the command in shell and capture output
+        result = subprocess.run(command, shell=True, capture_output=True, text=True)
         output = result.stdout + result.stderr
 
-        # Append to console
-        st.session_state.console_output += f"> {cmd}\n{output}\n"
+        # Format output with prompt and command
+        full_output = f"{prompt_path}{command}\n{output}"
+        st.session_state.console_output += full_output
 
-        # Save command if not already saved
-        if cmd not in saved_commands:
-            saved_commands.append(cmd)
+        # Save command persistently if not saved
+        if command not in saved_commands:
+            saved_commands.append(command)
             with open(COMMANDS_FILE, "w") as f:
                 json.dump(saved_commands, f)
 
     except Exception as e:
-        st.session_state.console_output += f"> {cmd}\nError: {e}\n"
+        st.session_state.console_output += f"{prompt_path}{command}\nError: {e}\n"
 
-# Run command on button click
-if st.button("Run"):
-    if command.strip() != "":
-        run_command(command)
-        st.session_state.last_command = command
+    # Clear command input box after running
+    st.session_state.cmd_input = ""
 
-# Show console output
-st.text_area("Console Output", value=st.session_state.console_output, height=400, max_chars=None)
-
-# Show saved commands
-st.subheader("Saved Commands")
-for cmd in saved_commands:
-    st.write(cmd)
+    # Rerun the app to update console display and clear input
+    st.experimental_rerun()
